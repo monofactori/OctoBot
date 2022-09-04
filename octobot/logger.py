@@ -14,28 +14,26 @@
 #  You should have received a copy of the GNU General Public
 #  License along with OctoBot. If not, see <https://www.gnu.org/licenses/>.
 import logging
+import logging.config as config
 import os
 import shutil
-import traceback
-import logging.config as config
-
 import sys
+import traceback
+import pandas as pd
+import numpy as np
 import async_channel.channels as channel_instances
 import async_channel.enums as channel_enums
-
-import octobot_commons.enums as enums
-import octobot_commons.constants as commons_constants
-import octobot_commons.logging as common_logging
 import octobot_commons.channels_name as channels_name
+import octobot_commons.constants as commons_constants
+import octobot_commons.enums as enums
+import octobot_commons.logging as common_logging
 import octobot_commons.pretty_printer as pretty_printer
-
 import octobot_evaluators.evaluators.channel as evaluator_channels
-
-import octobot_trading.exchange_channel as exchanges_channel
 import octobot_trading.enums as trading_enums
+import octobot_trading.exchange_channel as exchanges_channel
 
-import octobot.constants as constants
 import octobot.configuration_manager as configuration_manager
+import octobot.constants as constants
 
 BOT_CHANNEL_LOGGER = None
 LOGGER_PRIORITY_LEVEL = channel_enums.ChannelConsumerPriorityLevels.OPTIONAL.value
@@ -365,6 +363,12 @@ async def matrix_callback(
         f"CRYPTOCURRENCY = {cryptocurrency} || SYMBOL = {symbol} || TF = {time_frame} "
         f"|| NOTE = {eval_note} [MATRIX id = {matrix_id}] "
     )
+
+    datamatrix = ({'EXCHANGE': [exchange_name], 'EVALUATOR': [evaluator_name], 'EVALUATOR_TYPE': [evaluator_type],
+                   'CRYPTOCURRENCY': [cryptocurrency], 'SYMBOL': [symbol], 'TF': [time_frame],
+                   'NOTE': [eval_note]})
+    df = pd.DataFrame(datamatrix, columns=['EXCHANGE', 'EVALUATOR', 'EVALUATOR_TYPE', 'CRYPTOCURRENCY', 'SYMBOL', 'TF', 'NOTE', 'MATRIX id'])
+    df.to_csv('logs/datamatrix.csv', mode='a', header='false')
 
 
 async def evaluators_callback(
