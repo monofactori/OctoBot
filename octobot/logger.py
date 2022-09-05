@@ -14,6 +14,8 @@
 #  You should have received a copy of the GNU General Public
 #  License along with OctoBot. If not, see <https://www.gnu.org/licenses/>.
 import logging
+import pyodbc
+import datetime
 import logging.config as config
 import os
 import shutil
@@ -364,11 +366,22 @@ async def matrix_callback(
         f"|| NOTE = {eval_note} [MATRIX id = {matrix_id}] "
     )
 
-    datamatrix = ({'EXCHANGE': [exchange_name], 'EVALUATOR': [evaluator_name], 'EVALUATOR_TYPE': [evaluator_type],
-                   'CRYPTOCURRENCY': [cryptocurrency], 'SYMBOL': [symbol], 'TF': [time_frame],
-                   'NOTE': [eval_note]})
-    df = pd.DataFrame(datamatrix, columns=['EXCHANGE', 'EVALUATOR', 'EVALUATOR_TYPE', 'CRYPTOCURRENCY', 'SYMBOL', 'TF', 'NOTE', 'MATRIX id'])
-    df.to_csv('logs/datamatrix.csv', mode='a', header='false')
+    server = ''
+    database = ''
+    username = ''
+    password = ''
+    cnxn = pyodbc.connect(
+        f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}',
+        ansi=True)
+    cursor = cnxn.cursor()
+
+    try:
+        cursor.execute('''insert into Logs (Date_time, Exchange, Evaluator, Evaluator_type, Cryptocurrency, Symbol,
+         Time_frame, Note) values (?, ?, ?, ?, ?, ?, ?, ?, ?);''', datetime.datetime.now(), exchange_name, evaluator_name,
+                       evaluator_type, cryptocurrency, symbol, time_frame, eval_note, Can)
+        cursor.commit()
+    except pyodbc.IntegrityError:
+        pass
 
 
 async def evaluators_callback(
