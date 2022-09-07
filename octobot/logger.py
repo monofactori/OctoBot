@@ -41,6 +41,15 @@ BOT_CHANNEL_LOGGER = None
 LOGGER_PRIORITY_LEVEL = channel_enums.ChannelConsumerPriorityLevels.OPTIONAL.value
 
 
+def connect_db():
+    server = ''
+    database = ''
+    username = ''
+    password = ''
+    cnxn = pyodbc.connect(
+        f'DRIVER={{PostgreSQL ODBC driver(UNICODE)}};SERVER={server};DATABASE={database};UID={username};PWD={password}')
+    return cnxn.cursor()
+
 def _log_uncaught_exceptions(ex_cls, ex, tb):
     logging.exception("".join(traceback.format_tb(tb)))
     logging.exception("{0}: {1}".format(ex_cls, ex))
@@ -234,6 +243,16 @@ async def ohlcv_callback(
         f"|| TIME FRAME = {time_frame} || CANDLE = {candle}"
     )
 
+    cursor = connect_db()
+
+    try:
+        cursor.execute('''insert into "Price" ("Date", "Time", "Close_price") values (?, ?, ?);''',
+                       datetime.datetime.now().date(), datetime.datetime.now().time(), candle[-3])
+
+        cursor.commit()
+    except pyodbc.IntegrityError:
+        pass
+
 
 async def recent_trades_callback(
         exchange: str, exchange_id: str, cryptocurrency: str, symbol: str, recent_trades
@@ -366,19 +385,14 @@ async def matrix_callback(
         f"|| NOTE = {eval_note} [MATRIX id = {matrix_id}] "
     )
 
-    server = ''
-    database = ''
-    username = ''
-    password = ''
-    cnxn = pyodbc.connect(
-        f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}',
-        ansi=True)
-    cursor = cnxn.cursor()
+    cursor = connect_db()
 
     try:
-        cursor.execute('''insert into Logs (Date_time, Exchange, Evaluator, Evaluator_type, Cryptocurrency, Symbol,
-         Time_frame, Note) values (?, ?, ?, ?, ?, ?, ?, ?, ?);''', datetime.datetime.now(), exchange_name, evaluator_name,
-                       evaluator_type, cryptocurrency, symbol, time_frame, eval_note, Can)
+        cursor.execute('''insert into "Logs" ("Date", "Time", "Exchange", "Evaluator", "Evaluator_type",
+         "Cryptocurrency", "Symbol", "Time_frame", "Note") values (?, ?, ?, ?, ?, ?, ?, ?, ?);''',
+                       datetime.datetime.now().date(), datetime.datetime.now().time(), exchange_name, evaluator_name,
+                       evaluator_type, cryptocurrency, symbol, time_frame, eval_note)
+
         cursor.commit()
     except pyodbc.IntegrityError:
         pass
