@@ -15,17 +15,24 @@
 #  License along with OctoBot. If not, see <https://www.gnu.org/licenses/>.
 import os
 import pathlib
+import dotenv
+
 import octobot_commons.os_util as os_util
+import octobot_commons.enums
 import octobot.enums
 
 PROJECT_NAME = "OctoBot"
 AUTHOR = "DrakkarSoftware"
-SHORT_VERSION = "0.4.8"  # major.minor.revision
+SHORT_VERSION = "0.4.23"  # major.minor.revision
 PATCH_VERSION = ""  # patch : pX
 VERSION_DEV_PHASE = ""  # alpha : a / beta : b / release candidate : rc
 VERSION_PHASE = ""  # XX
 VERSION = f"{SHORT_VERSION}{VERSION_DEV_PHASE}{VERSION_PHASE}"
 LONG_VERSION = f"{SHORT_VERSION}{PATCH_VERSION}{VERSION_DEV_PHASE}{VERSION_PHASE}"
+
+# load environment variables from .env file if exists
+DOTENV_PATH = os.getenv("DOTENV_PATH", os.path.curdir)
+dotenv.load_dotenv(os.path.join(DOTENV_PATH, ".env"), verbose=False)
 
 # OctoBot urls
 OCTOBOT_WEBSITE_URL = os.getenv("OCTOBOT_ONLINE_URL", "https://www.octobot.online")
@@ -35,15 +42,17 @@ DEVELOPER_DOCS_URL = os.getenv("DOCS_OCTOBOT_ONLINE_URL", "https://developer.oct
 OCTOBOT_ONLINE = os.getenv("TENTACLES_OCTOBOT_ONLINE_URL", "https://static.octobot.online")
 OCTOBOT_FEEDBACK = os.getenv("FEEDBACK_OCTOBOT_ONLINE_URL", "https://feedback.octobot.online/")
 TENTACLES_REPOSITORY = "tentacles"
+BETA_TENTACLES_REPOSITORY = "dev-tentacles"
 OFFICIALS = "officials"
 TENTACLE_CATEGORY = "full"
 TENTACLE_PACKAGE_NAME = "base"
+BETA_TENTACLE_PACKAGE_NAME = "beta"
 TENTACLE_PACKAGES = "packages"
 COMPILED_TENTACLE_CATEGORY = "extra"
 
 OCTOBOT_DONATION_URL = "https://forms.gle/Bagagc7dyjJGDT1t9"
 OCTOBOT_FEEDBACK_FORM_URL = "https://goo.gl/forms/vspraniXPY7rvtKN2"
-OCTOBOT_BETA_PROGRAM_FORM_URL = "https://forms.gle/igqn1TjQ8XVA1dXBA"
+OCTOBOT_BETA_PROGRAM_FORM_URL = "https://octobot.click/docs-join-beta"
 
 COMMUNITY_FEED_CURRENT_MINIMUM_VERSION = "1.0.0"
 COMMUNITY_FEED_DEFAULT_TYPE = octobot.enums.CommunityFeedType.MQTTFeed
@@ -80,20 +89,29 @@ STAGING_COMMUNITY_GQL_BACKEND_API_URL = os.getenv(
 
 CONFIG_COMMUNITY = "community"
 CONFIG_COMMUNITY_TOKEN = "token"
-CONFIG_COMMUNITY_DEVICE_ID = "device_id"
+CONFIG_COMMUNITY_BOT_ID = "bot_id"
 CONFIG_COMMUNITY_ENVIRONMENT = "environment"
-USE_BETA_EARLY_ACCESS = os_util.parse_boolean_environment_var("USE_BETA_EARLY_ACCESS", "False")
-USER_ACCOUNT_EMAIL = os.getenv("USER_ACCOUNT_EMAIL", None)
-IS_CLOUD_ENV = os_util.parse_boolean_environment_var("IS_CLOUD_ENV", "False")
+USE_BETA_EARLY_ACCESS = os_util.parse_boolean_environment_var("USE_BETA_EARLY_ACCESS", "false")
+USER_ACCOUNT_EMAIL = os.getenv("USER_ACCOUNT_EMAIL", "")
+COMMUNITY_BOT_ID = os.getenv("COMMUNITY_BOT_ID", "")
+IS_CLOUD_ENV = os_util.parse_boolean_environment_var("IS_CLOUD_ENV", "false")
+CAN_INSTALL_TENTACLES = os_util.parse_boolean_environment_var("CAN_INSTALL_TENTACLES", str(not IS_CLOUD_ENV))
 
 OCTOBOT_BINARY_PROJECT_NAME = "OctoBot-Binary"
+
+# limits
+UNLIMITED_ALLOWED = -1
+MAX_ALLOWED_EXCHANGES = int(os.getenv("MAX_ALLOWED_EXCHANGES", str(UNLIMITED_ALLOWED)))
+MAX_ALLOWED_SYMBOLS = int(os.getenv("MAX_ALLOWED_SYMBOLS", str(UNLIMITED_ALLOWED)))
 
 # tentacles
 ENV_TENTACLES_URL = "TENTACLES_URL"
 ENV_COMPILED_TENTACLES_URL = "COMPILED_TENTACLES_URL"
 ENV_TENTACLES_REPOSITORY = "TENTACLES_REPOSITORY"
+ENV_BETA_TENTACLES_REPOSITORY = "BETA_TENTACLES_REPOSITORY"
 ENV_TENTACLES_URL_TAG = "TENTACLES_URL_TAG"
 ENV_TENTACLE_PACKAGE_NAME = "TENTACLE_PACKAGE_NAME"
+ENV_BETA_TENTACLES_PACKAGE_NAME = "BETA_TENTACLES_PACKAGE_NAME"
 ENV_TENTACLES_PACKAGES_TYPE = "TENTACLES_PACKAGES_TYPE"
 ENV_TENTACLES_PACKAGES_SOURCE = "TENTACLES_PACKAGES_SOURCE"
 ENV_COMPILED_TENTACLES_CATEGORY = "COMPILED_TENTACLES_CATEGORY"
@@ -150,7 +168,20 @@ OPTIMIZER_FORCE_ASYNCIO_DEBUG_OPTION = False
 OPTIMIZER_DATA_FILES_FOLDER = f"{OCTOBOT_FOLDER}/strategy_optimizer/optimizer_data_files"
 OPTIMIZATION_CAMPAIGN_KEY = "optimization_campaign"
 
+# Databases
+DEFAULT_MAX_TOTAL_RUN_DATABASES_SIZE = 1000000000   # 1GB
+ENABLE_RUN_DATABASE_LIMIT = os_util.parse_boolean_environment_var("ENABLE_RUN_DATABASE_LIMIT", "True")
+MAX_TOTAL_RUN_DATABASES_SIZE = int(os.getenv("MAX_TOTAL_RUN_DATABASES_SIZE", DEFAULT_MAX_TOTAL_RUN_DATABASES_SIZE))
+
 # Channel
 OCTOBOT_CHANNEL = "OctoBot"
+
+# Initialization
+REQUIRED_TOPIC_FOR_DATA_INIT = [
+    octobot_commons.enums.InitializationEventExchangeTopics.CANDLES,
+    octobot_commons.enums.InitializationEventExchangeTopics.CONTRACTS,
+    octobot_commons.enums.InitializationEventExchangeTopics.PRICE,
+    octobot_commons.enums.InitializationEventExchangeTopics.BALANCE,
+]
 
 OCTOBOT_KEY = b'uVEw_JJe7uiXepaU_DR4T-ThkjZlDn8Pzl8hYPIv7w0='

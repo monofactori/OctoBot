@@ -28,6 +28,7 @@ import time
 import numpy
 import logging
 import ctypes
+import random
 
 import octobot_commons.optimization_campaign as optimization_campaign
 import octobot_commons.constants as commons_constants
@@ -84,12 +85,14 @@ class StrategyDesignOptimizer:
     CONFIG_DELETE_EVERY_RUN = "delete_every_run"
     CONFIG_ROLE = "role"
 
-    def __init__(self, trading_mode, config, tentacles_setup_config, optimizer_config, optimizer_id=None):
+    def __init__(self, trading_mode, config, tentacles_setup_config, optimizer_config,
+                 optimizer_id=None, queue_size=None):
         self.config = config
         self.base_tentacles_setup_config = tentacles_setup_config
         self.trading_mode = trading_mode
         self.optimizer_config = optimizer_config
         self.optimizer_id = optimizer_id
+        self.queue_size = queue_size
         self.current_backtesting_id = None
         self.runs_schedule = None
         self.logger = commons_logging.get_logger(self.__class__.__name__)
@@ -621,7 +624,8 @@ class StrategyDesignOptimizer:
                 tentacles_setup_config,
                 data_files,
                 start_timestamp=start_timestamp,
-                end_timestamp=end_timestamp
+                end_timestamp=end_timestamp,
+                enforce_total_databases_max_size_after_run=False,
             )
             await octobot_backtesting_api.initialize_and_run_independent_backtesting(independent_backtesting,
                                                                                      log_errors=False)
@@ -694,6 +698,12 @@ class StrategyDesignOptimizer:
         await self._save_run_schedule(runs)
         return runs
 
+    def _shuffle_and_select_runs(self, runs, select_size=None) -> dict:
+        shuffled_runs = list(runs.values())
+        random.shuffle(shuffled_runs)
+        selected_runs = shuffled_runs if select_size is None else shuffled_runs[:select_size]
+        return {i: run for i, run in enumerate(selected_runs)}
+
     def _generate_runs(self):
         iterations = [i for i in self._get_config_possible_iterations() if i]
         runs = {
@@ -702,11 +712,12 @@ class StrategyDesignOptimizer:
             if self._is_run_allowed(run)
         }
         if runs:
-            for run in runs.values():
+            shuffled_runs = self._shuffle_and_select_runs(runs, select_size=self.queue_size)
+            for run in shuffled_runs.values():
                 for run_input in run:
                     # do not store self.CONFIG_KEY
                     run_input.pop(self.CONFIG_KEY, None)
-            return runs
+            return shuffled_runs
         raise RuntimeError("No optimizer run to schedule with this configuration")
 
     def _is_run_allowed(self, run):

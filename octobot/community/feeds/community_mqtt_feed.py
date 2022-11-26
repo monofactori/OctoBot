@@ -13,13 +13,12 @@
 #
 #  You should have received a copy of the GNU General Public
 #  License along with OctoBot. If not, see <https://www.gnu.org/licenses/>.
-import time
 import uuid
 import gmqtt
 import json
 import zlib
 import asyncio
-import distutils.version as loose_version
+import packaging.version as packaging_version
 
 import octobot_commons.enums as commons_enums
 import octobot_commons.errors as commons_errors
@@ -52,7 +51,8 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
         self.mqtt_version = self.MQTT_VERSION
         self.mqtt_broker_port = self.MQTT_BROKER_PORT
         self.default_QOS = self.default_QOS
-        self.associated_gql_device_id = None
+        self.associated_gql_bot_id = None
+        self.subscribed = False
 
         self._mqtt_client: gmqtt.Client = None
         self._valid_auth = True
@@ -66,10 +66,11 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
 
     async def start(self):
         self.should_stop = False
-        self._device_uuid = self.authenticator.user_account.get_selected_device_uuid()
+        self._device_uuid = self.authenticator.user_account.get_selected_bot_device_uuid()
         await self._connect()
 
     async def stop(self):
+        self.logger.debug("Stopping ...")
         self.should_stop = True
         await self._stop_mqtt_client()
         if self._reconnect_task is not None and not self._reconnect_task.done():
@@ -77,6 +78,7 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
         if self._connect_task is not None and not self._connect_task.done():
             self._connect_task.cancel()
         self._reset()
+        self.logger.debug("Stopped")
 
     async def restart(self):
         try:
@@ -88,7 +90,6 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
     def _reset(self):
         self._connected_at_least_once = False
         self._subscription_attempts = 0
-        self._subscription_topics = set()
         self._connect_task = None
         self._valid_auth = True
 
@@ -98,6 +99,9 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
 
     def is_connected(self):
         return self._mqtt_client is not None and self._mqtt_client.is_connected
+
+    def is_connected_to_remote_feed(self):
+        return self.subscribed
 
     def can_connect(self):
         return self._valid_auth
@@ -123,17 +127,27 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
         return f"{channel_type.value}/{identifier}"
 
     async def _on_message(self, client, topic, payload, qos, properties):
-        uncompressed_payload = zlib.decompress(payload).decode()
-        self.logger.debug(f"Received message, client_id: {client._client_id}, topic: {topic}, "
-                          f"uncompressed payload: {uncompressed_payload}, QOS: {qos}, properties: {properties}")
-        parsed_message = json.loads(uncompressed_payload)
+        try:
+            uncompressed_payload = zlib.decompress(payload).decode()
+            self.logger.debug(f"Received message, client_id: {client._client_id}, topic: {topic}, "
+                              f"uncompressed payload: {uncompressed_payload}, QOS: {qos}, properties: {properties}")
+            parsed_message = json.loads(uncompressed_payload)
+        except Exception as err:
+            self.logger.exception(err, True, f"Unexpected error when reading message: {err}")
+            return
+        await self._process_message(topic, parsed_message)
+
+    async def _process_message(self, topic, parsed_message):
         try:
             self._ensure_supported(parsed_message)
             if self._should_process(parsed_message):
+                self.update_last_message_time()
                 for callback in self._get_callbacks(topic):
                     await callback(parsed_message)
-        except commons_errors.UnsupportedError as e:
-            self.logger.error(f"Unsupported message: {e}")
+        except commons_errors.UnsupportedError as err:
+            self.logger.error(f"Unsupported message: {err}")
+        except Exception as err:
+            self.logger.exception(err, True, f"Unexpected error when processing message: {err}")
 
     def _should_process(self, parsed_message):
         if parsed_message[commons_enums.CommunityFeedAttrs.ID.value] in self._processed_messages:
@@ -153,7 +167,7 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
             self.logger.warning(f"Can't send {channel_type.name}, invalid feed authentication.")
             return
         topic = self._build_topic(channel_type, identifier)
-        self.logger.debug(f"Sending message on topic: {topic}, message: {message}")
+        self.logger.info(f"Sending message on topic: {topic}, message: {message}")
         self._mqtt_client.publish(
             self._build_topic(channel_type, identifier),
             self._build_message(channel_type, message),
@@ -180,14 +194,16 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
         return {}
 
     def _ensure_supported(self, parsed_message):
-        if loose_version.LooseVersion(parsed_message[commons_enums.CommunityFeedAttrs.VERSION.value]) \
-                < loose_version.LooseVersion(constants.COMMUNITY_FEED_CURRENT_MINIMUM_VERSION):
+        if packaging_version.Version(parsed_message[commons_enums.CommunityFeedAttrs.VERSION.value]) \
+                < packaging_version.Version(constants.COMMUNITY_FEED_CURRENT_MINIMUM_VERSION):
             raise commons_errors.UnsupportedError(
                 f"Minimum version: {constants.COMMUNITY_FEED_CURRENT_MINIMUM_VERSION}"
             )
 
     def _on_connect(self, client, flags, rc, properties):
         self.logger.info(f"Connected, client_id: {client._client_id}")
+        # There are no subscription when we just connected
+        self.subscribed = False
         # Auto subscribe to known topics (mainly used in case of reconnection)
         self._subscribe(self._subscription_topics)
 
@@ -228,20 +244,23 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
         for subscription, granted_qos in zip(subscriptions, qos):
             # in case of bad suback code, we can resend  subscription
             if granted_qos >= gmqtt.constants.SubAckReasonCode.UNSPECIFIED_ERROR.value:
-                self.logger.warning(f"Retrying subscribe, client_id: {client._client_id}, mid: {mid}, "
+                self.logger.warning(f"Retrying subscribe to {[s.topic for s in subscriptions]}, "
+                                    f"client_id: {client._client_id}, mid: {mid}, "
                                     f"reason code: {granted_qos}, properties {properties}")
                 if self._subscription_attempts < self.MAX_SUBSCRIPTION_ATTEMPTS * len(subscriptions):
                     self._subscription_attempts += 1
                     client.resubscribe(subscription)
                 else:
                     self.logger.error(f"Max subscription attempts reached, stopping subscription "
-                                      f"to {[s.topic for s in subscriptions]}. Are you copying this "
+                                      f"to {[s.topic for s in subscriptions]}. Are you subscribing to this "
                                       f"strategy on your OctoBot account ?")
+                    self.subscribed = False
                     return
             else:
                 self._subscription_attempts = 0
-            self.logger.info(f"Subscribed, client_id: {client._client_id}, mid {mid}, QOS: {granted_qos}, "
-                             f"properties {properties}")
+                self.subscribed = True
+                self.logger.info(f"Subscribed, client_id: {client._client_id}, mid {mid}, QOS: {granted_qos}, "
+                                 f"properties {properties}")
 
     def _register_callbacks(self, client):
         client.on_connect = self._on_connect
@@ -260,12 +279,13 @@ class CommunityMQTTFeed(abstract_feed.AbstractFeed):
     async def _connect(self):
         if self._device_uuid is None:
             self._valid_auth = False
-            raise errors.DeviceError("mqtt device uuid is None, impossible to connect client")
+            raise errors.BotError("mqtt device uuid is None, impossible to connect client")
         self._mqtt_client = gmqtt.Client(self.__class__.__name__)
         self._update_client_config(self._mqtt_client)
         self._register_callbacks(self._mqtt_client)
         self._mqtt_client.set_auth_credentials(self._device_uuid, None)
-        self.logger.debug(f"Connecting client")
+        self.logger.debug(f"Connecting client using device "
+                          f"'{self.authenticator.user_account.get_selected_bot_device_name()}'")
         self._connect_task = asyncio.create_task(
             self._mqtt_client.connect(self.feed_url, self.mqtt_broker_port, version=self.MQTT_VERSION)
         )

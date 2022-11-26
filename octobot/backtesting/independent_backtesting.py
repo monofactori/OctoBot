@@ -39,6 +39,8 @@ import octobot_evaluators.constants as evaluator_constants
 import octobot_trading.api as trading_api
 import octobot_trading.enums as trading_enums
 
+import octobot.storage as storage
+
 
 class IndependentBacktesting:
     def __init__(self, config,
@@ -50,7 +52,9 @@ class IndependentBacktesting:
                  start_timestamp=None,
                  end_timestamp=None,
                  enable_logs=True,
-                 stop_when_finished=False):
+                 stop_when_finished=False,
+                 enforce_total_databases_max_size_after_run=True,
+                 enable_storage=True):
         self.octobot_origin_config = config
         self.tentacles_setup_config = tentacles_setup_config
         self.backtesting_config = {}
@@ -72,6 +76,7 @@ class IndependentBacktesting:
         self.enable_logs = enable_logs
         self.stop_when_finished = stop_when_finished
         self.previous_log_level = commons_logging.get_global_logger_level()
+        self.enforce_total_databases_max_size_after_run = enforce_total_databases_max_size_after_run
         self.octobot_backtesting = backtesting.OctoBotBacktesting(self.backtesting_config,
                                                                   self.tentacles_setup_config,
                                                                   self.symbols_to_create_exchange_classes,
@@ -79,12 +84,14 @@ class IndependentBacktesting:
                                                                   run_on_common_part_only,
                                                                   start_timestamp=start_timestamp,
                                                                   end_timestamp=end_timestamp,
-                                                                  enable_logs=self.enable_logs)
+                                                                  enable_logs=self.enable_logs,
+                                                                  enable_storage=enable_storage)
 
     async def initialize_and_run(self, log_errors=True):
         try:
             # create stopped_event here only to be sure to create it in the same loop as the one of the
             # backtesting run
+            self.logger.debug("Starting backtesting")
             if self.stop_when_finished:
                 self.stopped_event = asyncio.Event()
             if not self.enable_logs:
@@ -162,11 +169,16 @@ class IndependentBacktesting:
         else:
             # stop backtesting importers to release database files
             await self.octobot_backtesting.stop_importers()
+        if self.enforce_total_databases_max_size_after_run:
+            try:
+                await storage.enforce_total_databases_max_size()
+            except Exception as e:
+                self.logger.exception(e, True, f"Error when enforcing max run databases size: {e}")
 
     @staticmethod
     def _get_market_delta(symbol, exchange_manager, min_timeframe):
         market_data = trading_api.get_symbol_historical_candles(
-            trading_api.get_symbol_data(exchange_manager, symbol.legacy_symbol()), min_timeframe)
+            trading_api.get_symbol_data(exchange_manager, str(symbol)), min_timeframe)
         market_begin = market_data[enums.PriceIndexes.IND_PRICE_CLOSE.value][0]
         market_end = market_data[enums.PriceIndexes.IND_PRICE_CLOSE.value][-1]
 
@@ -321,7 +333,7 @@ class IndependentBacktesting:
             exchange_details.pop(common_constants.CONFIG_EXCHANGE_SANDBOXED, None)
         self.backtesting_config[common_constants.CONFIG_TRADING][common_constants.CONFIG_TRADER_RISK] = self.risk
         self.backtesting_config[common_constants.CONFIG_TRADING][
-            common_constants.CONFIG_TRADER_REFERENCE_MARKET] = self._find_reference_market()
+            common_constants.CONFIG_TRADER_REFERENCE_MARKET] = self._find_reference_market_and_update_contract_type()
         self.backtesting_config[common_constants.CONFIG_SIMULATOR][
             common_constants.CONFIG_STARTING_PORTFOLIO] = self.starting_portfolio
         self.backtesting_config[common_constants.CONFIG_SIMULATOR][
@@ -333,12 +345,17 @@ class IndependentBacktesting:
         self._add_config_default_backtesting_values()
 
     def _init_exchange_type(self):
+        forced_exchange_type = self.octobot_origin_config.get(common_constants.CONFIG_EXCHANGE_TYPE,
+                                                              common_constants.USE_CURRENT_PROFILE)
         try:
             for exchange_name in self.symbols_to_create_exchange_classes:
-                # use current profile config to create a spot/future/margin backtesting exchange
-                self.octobot_backtesting.exchange_type_by_exchange[exchange_name] = \
-                    self.octobot_origin_config[common_constants.CONFIG_EXCHANGES].get(exchange_name, {}).\
-                    get(common_constants.CONFIG_EXCHANGE_TYPE, common_constants.DEFAULT_EXCHANGE_TYPE)
+                if forced_exchange_type == common_constants.USE_CURRENT_PROFILE:
+                    # use current profile config to create a spot/future/margin backtesting exchange
+                    self.octobot_backtesting.exchange_type_by_exchange[exchange_name] = \
+                        self.octobot_origin_config[common_constants.CONFIG_EXCHANGES].get(exchange_name, {}).\
+                        get(common_constants.CONFIG_EXCHANGE_TYPE, common_constants.DEFAULT_EXCHANGE_TYPE)
+                else:
+                    self.octobot_backtesting.exchange_type_by_exchange[exchange_name] = forced_exchange_type
         except StopIteration:
             # use default exchange type
             pass
@@ -350,29 +367,41 @@ class IndependentBacktesting:
                 optimization_campaign.OptimizationCampaign.get_campaign_name(self.tentacles_setup_config)
             )
             run_dbs_identifier.backtesting_id = await run_dbs_identifier.generate_new_backtesting_id()
-            # initialize to lock the backtesting id
-            await run_dbs_identifier.initialize()
+            if self.octobot_backtesting.enable_storage:
+                # initialize to lock the backtesting id
+                await run_dbs_identifier.initialize()
             self.backtesting_config[common_constants.CONFIG_BACKTESTING_ID] = run_dbs_identifier.backtesting_id
 
-    def _find_reference_market(self):
+    def _find_reference_market_and_update_contract_type(self):
         ref_market_candidate = None
         ref_market_candidates = {}
+        forced_contract_type = self.octobot_origin_config.get(common_constants.CONFIG_CONTRACT_TYPE,
+                                                              common_constants.USE_CURRENT_PROFILE)
         for symbols in self.symbols_to_create_exchange_classes.values():
             symbol = symbols[0]
             if next(iter(self.octobot_backtesting.exchange_type_by_exchange.values())) \
                     == common_constants.CONFIG_EXCHANGE_FUTURE:
-                if symbol.is_inverse():
-                    if not all([symbol.is_inverse() for symbol in symbols]):
-                        self.logger.error(f"Mixed inverse and linear contracts backtesting are not supported yet")
-                    self.octobot_backtesting.futures_contract_type = trading_enums.FutureContractType.INVERSE_PERPETUAL
+                if forced_contract_type == common_constants.USE_CURRENT_PROFILE:
+                    if symbol.is_inverse():
+                        if not all([symbol.is_inverse() for symbol in symbols]):
+                            self.logger.error(f"Mixed inverse and linear contracts backtesting are not supported yet")
+                            self.octobot_backtesting.futures_contract_type = \
+                                trading_enums.FutureContractType.INVERSE_PERPETUAL
+                    else:
+                        if not all([symbol.is_linear() for symbol in symbols]):
+                            self.logger.error(f"Mixed inverse and linear contracts backtesting are not supported yet")
+                        self.octobot_backtesting.futures_contract_type = \
+                            trading_enums.FutureContractType.LINEAR_PERPETUAL
+                    # in inverse contracts, use BTC for BTC/USD trading as reference market
+                    if symbol.settlement_asset:
+                        # only use settlement asset if available
+                        return symbol.settlement_asset
                 else:
-                    if not all([symbol.is_linear() for symbol in symbols]):
-                        self.logger.error(f"Mixed inverse and linear contracts backtesting are not supported yet")
-                    self.octobot_backtesting.futures_contract_type = trading_enums.FutureContractType.LINEAR_PERPETUAL
-                # in inverse contracts, use BTC for BTC/USD trading as reference market
-                if symbol.settlement_asset:
-                    # only use settlement asset if available
-                    return symbol.settlement_asset
+                    self.octobot_backtesting.futures_contract_type = forced_contract_type
+                    return symbol.base \
+                        if forced_contract_type is trading_enums.FutureContractType.INVERSE_PERPETUAL \
+                        else symbol.quote
+
             for symbol in symbols:
                 quote = symbol.quote
                 if ref_market_candidate is None:
@@ -396,7 +425,7 @@ class IndependentBacktesting:
     def _add_crypto_currencies_config(self):
         for symbols in self.symbols_to_create_exchange_classes.values():
             for symbol in symbols:
-                symbol_id = symbol.legacy_symbol()
+                symbol_id = str(symbol)
                 if symbol_id not in self.backtesting_config[common_constants.CONFIG_CRYPTO_CURRENCIES]:
                     self.backtesting_config[common_constants.CONFIG_CRYPTO_CURRENCIES][symbol_id] = {
                         common_constants.CONFIG_CRYPTO_PAIRS: []

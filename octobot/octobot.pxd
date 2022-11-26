@@ -30,6 +30,7 @@ cdef class OctoBot:
     cdef public bint reset_trading_history
     cdef public bint initialized
     cdef public bint ignore_config
+    cdef public list startup_messages
 
     cdef public dict tools
     cdef public dict config
@@ -44,6 +45,7 @@ cdef class OctoBot:
 
     cdef public initializer.Initializer initializer
     cdef public task_manager.TaskManager task_manager
+    cdef object _init_metadata_run_task
     cdef public producers.ExchangeProducer exchange_producer
     cdef public producers.EvaluatorProducer evaluator_producer
     cdef public producers.InterfaceProducer interface_producer
@@ -52,7 +54,7 @@ cdef class OctoBot:
     cdef public octobot_channel_consumer.OctoBotChannelGlobalConsumer global_consumer
     cdef public configuration_manager.ConfigurationManager configuration_manager
 
-    cpdef object run_in_main_asyncio_loop(self, object coroutine, bint log_exceptions=*)
+    cpdef object run_in_main_asyncio_loop(self, object coroutine, bint log_exceptions=*, object timeout=*)
     cpdef void set_watcher(self, object watcher)
     cpdef object get_aiohttp_session(self)
     cpdef object get_edited_config(self, str config_key, bint dict_only=*)

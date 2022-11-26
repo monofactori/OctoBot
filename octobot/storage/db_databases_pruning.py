@@ -13,24 +13,16 @@
 #
 #  You should have received a copy of the GNU General Public
 #  License along with OctoBot. If not, see <https://www.gnu.org/licenses/>.
-import octobot_commons.authentication as commons_authentication
+import octobot_commons.databases as databases
+import octobot.constants as constants
 
 
-class RequestError(Exception):
-    pass
-
-
-class StatusCodeRequestError(RequestError):
-    pass
-
-
-class BotError(commons_authentication.UnavailableError):
-    pass
-
-
-class BotNotFoundError(BotError):
-    pass
-
-
-class NoBotDeviceError(BotError):
-    pass
+async def enforce_total_databases_max_size():
+    if constants.ENABLE_RUN_DATABASE_LIMIT:
+        run_databases_identifier = databases.RunDatabasesProvider.instance().get_any_run_databases_identifier()
+        pruner = databases.run_databases_pruner_factory(
+            run_databases_identifier,
+            constants.MAX_TOTAL_RUN_DATABASES_SIZE,
+        )
+        await pruner.explore()
+        await pruner.prune_oldest_run_databases()

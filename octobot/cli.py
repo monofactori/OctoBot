@@ -13,10 +13,8 @@
 #
 #  You should have received a copy of the GNU General Public
 #  License along with OctoBot. If not, see <https://www.gnu.org/licenses/>.
-# prevents distutils_patch.py:26: UserWarning: Distutils was imported before Setuptools. This usage is discouraged
-# and may exhibit undesirable behaviors or errors. Please use Setuptools' objects directly or at least import Setuptools
-# first
-from distutils.version import LooseVersion
+
+import packaging.version as packaging_version
 
 import argparse
 import os
@@ -44,6 +42,7 @@ import octobot.constants as constants
 import octobot.disclaimer as disclaimer
 import octobot.logger as octobot_logger
 import octobot.community as octobot_community
+import octobot.limits as limits
 
 
 def update_config_with_args(starting_args, config: configuration.Configuration, logger):
@@ -122,6 +121,7 @@ def _create_startup_config(logger):
         config.read(should_raise=False)
     else:
         _read_config(config, logger)
+        _ensure_profile(config, logger)
         _validate_config(config, logger)
     return config
 
@@ -135,6 +135,19 @@ def _read_config(config, logger):
         config.read(should_raise=False, fill_missing_fields=True)
     except Exception as e:
         raise errors.ConfigError(e)
+
+
+def _ensure_profile(config, logger):
+    if config.profile is None:
+        # no selected profile or profile not found
+        try:
+            config.select_profile(common_constants.DEFAULT_PROFILE)
+        except KeyError:
+            logger.error(f"Missing default profiles. Please make sure that the {config.profiles_path} "
+                         f"folder is accessible. To reinstall default profiles, delete the "
+                         f"'{tentacles_manager_constants.TENTACLES_PATH}' "
+                         f"folder or start OctoBot with the following arguments: tentacles --install --all")
+            raise errors.NoProfileError
 
 
 def _validate_config(config, logger):
@@ -162,7 +175,8 @@ def _load_or_create_tentacles(config, logger):
     if os.path.isfile(tentacles_manager_constants.USER_REFERENCE_TENTACLE_CONFIG_FILE_PATH):
         config.load_profiles_if_possible_and_necessary()
         tentacles_setup_config = tentacles_manager_api.get_tentacles_setup_config(
-            config.get_tentacles_config_path())
+            config.get_tentacles_config_path()
+        )
         commands.run_update_or_repair_tentacles_if_necessary(config, tentacles_setup_config)
     else:
         # when no tentacles folder has been found
@@ -179,6 +193,7 @@ def start_octobot(args):
             return
 
         logger = octobot_logger.init_logger()
+        startup_messages = []
 
         # Version
         logger.info("Version : {0}".format(constants.LONG_VERSION))
@@ -218,6 +233,9 @@ def start_octobot(args):
         # Keep track of errors if any
         octobot_community.register_error_uploader(constants.ERRORS_POST_ENDPOINT, config)
 
+        # Apply config limits if any
+        startup_messages += limits.apply_config_limits(config)
+
         # create OctoBot instance
         if args.backtesting:
             bot = octobot_backtesting.OctoBotBacktestingFactory(config,
@@ -225,7 +243,8 @@ def start_octobot(args):
                                                                 enable_join_timeout=args.enable_backtesting_timeout,
                                                                 enable_logs=not args.no_logs)
         else:
-            bot = octobot_class.OctoBot(config, reset_trading_history=args.reset_trading_history)
+            bot = octobot_class.OctoBot(config, reset_trading_history=args.reset_trading_history,
+                                        startup_messages=startup_messages)
 
         # set global bot instance
         octobot.set_bot(bot)
@@ -400,7 +419,7 @@ def main(args=None):
     try:
         from octobot_tentacles_manager import VERSION
 
-        if LooseVersion(VERSION) < MIN_TENTACLE_MANAGER_VERSION:
+        if packaging_version.Version(VERSION) < packaging_version.Version(MIN_TENTACLE_MANAGER_VERSION):
             print("OctoBot requires OctoBot-Tentacles-Manager in a minimum version of " + MIN_TENTACLE_MANAGER_VERSION +
                   " you can install and update OctoBot-Tentacles-Manager using the following command: "
                   "python3 -m pip install -U OctoBot-Tentacles-Manager", file=sys.stderr)

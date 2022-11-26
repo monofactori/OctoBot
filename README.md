@@ -1,14 +1,12 @@
-# OctoBot [0.4.8](https://octobot.click/gh-changelog)
+# OctoBot [0.4.23](https://octobot.click/gh-changelog)
 [![PyPI](https://img.shields.io/pypi/v/OctoBot.svg)](https://octobot.click/gh-pypi)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/e07fb190156d4efb8e7d07aaa5eff2e1)](https://app.codacy.com/gh/Drakkar-Software/OctoBot?utm_source=github.com&utm_medium=referral&utm_content=Drakkar-Software/OctoBot&utm_campaign=Badge_Grade_Dashboard)[![Downloads](https://pepy.tech/badge/octobot/month)](https://pepy.tech/project/octobot)
 [![Dockerhub](https://img.shields.io/docker/pulls/drakkarsoftware/octobot.svg)](https://octobot.click/gh-dockerhub)
-[![Coverage Status](https://coveralls.io/repos/github/Drakkar-Software/OctoBot/badge.svg?branch=dev)](https://coveralls.io/github/Drakkar-Software/OctoBot?branch=dev)
 [![OctoBot-CI](https://github.com/Drakkar-Software/OctoBot/workflows/OctoBot-CI/badge.svg)](https://github.com/Drakkar-Software/OctoBot/actions)
-[![Build Status](https://cloud.drone.io/api/badges/Drakkar-Software/OctoBot/status.svg)](https://cloud.drone.io/Drakkar-Software/OctoBot)
 [![UptimeRobot](https://img.shields.io/uptimerobot/ratio/30/m786447893-903b482e5158c8b6483760e8)](https://octobot.click/gh-status)
 
 #### Octobot Community
-[![Active OctoBot](https://img.shields.io/badge/dynamic/json.svg?&url=https://octobotmetrics.herokuapp.com/metrics/community/count/0/-1/0&query=$.total&color=green&label=OctoBots%20online%20this%20month)]()
+[![Active OctoBot](https://img.shields.io/badge/dynamic/json.svg?&url=https://metrics.octobot.online/metrics/community/count/0/-1/0&query=$.total&color=green&label=OctoBots%20online%20this%20month)]()
 [![Telegram Chat](https://img.shields.io/badge/telegram-chat-green.svg)](https://octobot.click/gh-telegram)
 [![Discord](https://img.shields.io/discord/530629985661222912.svg?logo=discord)](https://octobot.click/gh-discord)
 [![Telegram News](https://img.shields.io/badge/telegram-news-blue.svg)](https://t.me/OctoBot_Project)
@@ -46,11 +44,11 @@ Octobot's main feature is **evolution** : you can [install](https://www.octobot.
 
 ## Hardware requirements
 - CPU : 1 Core / 1GHz
-- RAM : 250 Mo
-- Disk : 1 Go
+- RAM : 250 MB
+- Disk : 1 GB
 
 ## Installation
-OctoBot's installation is **very simple**... because **very documented** ! See the [installation guides](https://www.octobot.online/guides/#installation) for more info.
+OctoBot's installation is **very simple**... because it is **very documented** ! See the [installation guides](https://www.octobot.online/guides/#installation) for more info.
 
 #### [With executable](https://www.octobot.info/installation/with-binary)
 Follow the [2 steps installation guide](https://www.octobot.online/executable_installation/) 
@@ -103,28 +101,26 @@ In short :
 
 ## Exchanges
 [![Binance](../assets/binance-logo.png)](https://octobot.click/gh-binance)
-[![Binance](../assets/ftx-logo.png)](https://octobot.click/gh-ftx)
-[![Binance](../assets/okex-logo.png)](https://octobot.click/gh-okex)
-[![Binance](../assets/gateio-logo.png)](https://octobot.click/gh-gateio)
-[![Binance](../assets/huobi-logo.png)](https://octobot.click/gh-huobi)
+[![Okx](../assets/okex-logo.png)](https://octobot.click/gh-okex)
+[![GateIO](../assets/gateio-logo.png)](https://octobot.click/gh-gateio)
+[![Huobi](../assets/huobi-logo.png)](https://octobot.click/gh-huobi)
 [![Hollaex](../assets/hollaex-logo.png)](https://octobot.click/gh-hollaex)
 [![Coinbase](../assets/coinbasepro-logo.png)](https://pro.coinbase.com)
 [![Kucoin](../assets/kucoin-logo.png)](https://www.kucoin.com)
 [![Bitmex](../assets/bitmex-logo.png)](https://bitmex.com)
-[![Bitmax](../assets/ascendex-logo.png)](https://octobot.click/gh-ascendex)
+[![Ascendex](../assets/ascendex-logo.png)](https://octobot.click/gh-ascendex)
 
 Octobot supports many [exchanges](https://octobot.click/gh-exchanges) thanks to the [ccxt library](https://github.com/ccxt/ccxt). 
-To activate trading on an exchange, just configure OctoBot with your api keys as described [on the exchange documentation](https://www.octobot.online/guides/#exchanges).
+To activate trading on an exchange, just configure OctoBot with your API keys as described [on the exchange documentation](https://www.octobot.online/guides/#exchanges).
 
 ## Disclaimer
 Do not risk money which you are afraid to lose. USE THE SOFTWARE AT YOUR OWN RISK. THE AUTHORS 
 AND ALL AFFILIATES ASSUME NO RESPONSIBILITY FOR YOUR TRADING RESULTS. 
 
 Always start by running a trading bot in simulation mode and do not engage money
-before you understand how it works and what profit/loss you should
-expect.
+before you understand how it works and what profit/loss you should expect.
 
-Do not hesitate to read the source code and understand the mechanism of this bot.
+Please feel free to read the source code and understand the mechanism of this bot.
 
 ## License
 GNU General Public License v3.0 or later.

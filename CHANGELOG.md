@@ -6,6 +6,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 *It is strongly advised to perform an update of your tentacles after updating OctoBot. (start.py tentacles --install --all)*
 
+## [0.4.23] - 2022-11-24
+### Fixed
+- System resources watcher on linux
+
+## [0.4.22] - 2022-11-23
+### Added
+- System resources watcher
+
+## [0.4.21] - 2022-11-23
+### Added
+- Order quantity in Trading modes config
+- Copy trading last signal time
+### Updated
+- Improved profile page load time
+### Fixed
+- Errors on clock synchronizer
+- Exchange deletion spreading on profiles
+
+## [0.4.20] - 2022-11-13
+### Updated
+- Exceptions handling
+### Fixed
+- Crash on stop loss
+
+## [0.4.19] - 2022-11-01
+### Updated
+- Exchange configuration auth details
+
+## [0.4.18] - 2022-11-01
+### Fixed
+- Do not use beta env by default
+
+## [0.4.17] - 2022-11-01
+### Fixed
+- Copy trading order sizing
+
+## [0.4.16] - 2022-10-23
+### Updated
+- Copy trading configuration
+- CCXT configuration via environment variables
+### Fixed
+- Dip Analyser configuration 
+- Bitget & Coinex order handling
+
+## [0.4.15] - 2022-10-23
+### Fixed
+- Copy trading
+- Strategy optimizer stop
+
+## [0.4.14] - 2022-10-21
+### Fixed
+- Crash on historical portfolio computation
+### Added
+- Close position from web interface
+- Signals on user cancel order
+
+## [0.4.13] - 2022-10-15
+### Fixed
+- Spot trading fees computation
+
+## [0.4.12] - 2022-10-15
+### Fixed
+- Copy trading
+
+## [0.4.11] - 2022-10-14
+### Added
+- User inputs system
+- Phemex exchange
+- Run storage
+### Updated
+- Configuration for each tentacle
+- Community bot system instead of devices
+
+## [0.4.10] - 2022-09-13
+### Updated
+- Beta tentacles
+### Fixed
+- Kucoin rate limit issues
+- Futures trading issues
+- Tentacles versioning in profile import
+
+## [0.4.9] - 2022-09-07
+### Updated
+- Beta tentacles
+### Fixed
+- Profile export
+
 ## [0.4.8] - 2022-09-04
 ### Fixed
 - Device creation

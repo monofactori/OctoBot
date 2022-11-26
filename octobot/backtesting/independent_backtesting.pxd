@@ -43,6 +43,7 @@ cdef class IndependentBacktesting:
     cdef public object post_backtesting_task
     cdef public object previous_log_level
     cdef public object stopped_event
+    cdef public bint enforce_total_databases_max_size_after_run
 
     cdef public octobot_backtesting.OctoBotBacktesting octobot_backtesting
 
@@ -58,7 +59,7 @@ cdef class IndependentBacktesting:
     cdef void _log_symbol_report(self, str symbol, object exchange_manager, object min_time_frame)
     cdef void _log_global_report(self, object exchange_manager)
     cdef void _adapt_config(self)
-    cdef str _find_reference_market(self)
+    cdef str _find_reference_market_and_update_contract_type(self)
     cdef void _add_config_default_backtesting_values(self)
     cdef void _add_crypto_currencies_config(self)
     cdef void _init_exchange_type(self)
